@@ -48,35 +48,49 @@ func NewEngine(args *EngineArgs) *Engine {
 
 // Engine_Run will start engine. returns a ErrorChannel
 func (self *Engine) Run() <-chan error {
-	log.Info("[INIT] prepare for running")
+	log.Info("[INIT] engine health check...")
+
+	log.Info("[INIT] prepare downloader")
 	if self.downloader != nil {
-		log.Info("[INIT] prepare downloader")
 		self.download()
+		log.Info("[INIT] downloader ready")
+	} else {
+		log.Warn("[INIT] nil downloader")
 	}
 
+	log.Info("[INIT] prepare analyzer")
 	if self.analyzer != nil {
-		log.Info("[INIT] prepare analyzer")
 		self.analyze()
+		log.Warn("[INIT] analyzer ready")
+	} else {
+		log.Warn("[INIT] nil analyzer")
 	}
 
 	if self.pipeline != nil {
 		log.Info("[INIT] prepare pipeline")
 		self.pipework()
+		log.Warn("[INIT] analyzer ready")
+	} else {
+		log.Warn("[INIT] nil pipeline. set a pipeline with PrintItem")
+		self.pipeline, _ = NewPipelineFromProcessor(PrintItem)
 	}
 
 	if self.generator != nil {
 		log.Info("[INIT] prepare generator")
 		self.generate()
+		log.Info("[INIT] generator ready")
+	} else {
+		log.Warn("[INIT] nil generator")
 	}
 
-	log.Info("[INIT] all module prepared")
+	log.Info("[INIT] engine build complete success")
 	return (<-chan error)(self.Errors)
 }
 
 // Engine_download will start download loop with n worker
 func (self *Engine) download() {
 	for i := 0; uint32(i) < self.Workers; i ++ {
-		log.Infof("[INIT] init downloader worker [%d]", i)
+		log.Infof("[INIT] downloader worker [%d] init", i)
 		go func(worker int) {
 			for {
 				self.downloadOne()

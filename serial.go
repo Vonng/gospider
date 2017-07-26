@@ -43,7 +43,7 @@ type defaultSerial struct {
 	lock  sync.RWMutex
 }
 
-// NewSerial will create a Serial using defaultSerial
+// NewSerial create a defaultSerial with range 0 ~ UINT64_MAX
 func NewSerial() Serial {
 	return &defaultSerial{
 		min:  0,
@@ -52,8 +52,8 @@ func NewSerial() Serial {
 	}
 }
 
-// NewSerialRange will generate new serial with given bound
-// max=math.MaxUint64 when given max = 0
+// NewSerialRange create a Serial with given range min ~ max
+// when given max = 0, max is set to math.MaxUint64
 func NewSerialRange(min uint64, max uint64) Serial {
 	if max == 0 {
 		max = math.MaxUint64

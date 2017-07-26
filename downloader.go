@@ -23,8 +23,17 @@ type defaultDownloader struct {
 	Filter
 }
 
+// NewDefaultDownloader return a simple downloader without error
+func NewDefaultDownloader() Downloader {
+	return &defaultDownloader{
+		ModuleInternal: NewModuleInternalFromType(ModuleTypeDownloader),
+		Client:         &http.Client{},
+		Filter:         nil,
+	}
+}
+
 // NewDownloader will create a new downloader from given id
-func NewDownloader(client *http.Client, filter Filter) Downloader {
+func NewDownloader(client *http.Client, filter Filter) (Downloader, error) {
 	if client == nil {
 		client = new(http.Client)
 	}
@@ -33,36 +42,29 @@ func NewDownloader(client *http.Client, filter Filter) Downloader {
 		ModuleInternal: NewModuleInternalFromType(ModuleTypeDownloader),
 		Client:         client,
 		Filter:         filter,
-	}
+	}, nil
 }
 
 // defaultDownloader_Download will download response from given request
 func (self *defaultDownloader) Download(req *Request) (res *Response, err error) {
 	self.ModuleInternal.Call()
-
 	if req == nil || req.Request == nil {
 		return nil, ErrNilRequest
 	}
 
+	// Dupe filter
+	// by default filter is disabled when Download does not have a filter
 	if self.Filter != nil {
-		// if bool field "filter" occurs and value is false
-		var disableFilter = false
-		if filter, ok := req.Meta["filter"]; ok {
-			if filter.(bool) == false {
-				disableFilter = true
-			}
-		}
-		// by default: filter will check whether it's duplicate request
-		if !disableFilter {
+		// by default, all request will pass dupe filter. except they explict set Meta["_filter"] = false
+		if filter, ok := req.Meta[KeyFilter]; !(ok && filter.(bool) == false) {
+			// need filter
 			if self.Seen(req) {
-				log.Errorf("[$s] dupe request: %s", self.ID(), req.URL)
 				return nil, ErrDupeRequest
 			}
 		}
 	}
 
 	self.Doing()
-	log.Infof("[%s] URL: %s", self.ID(), req.URL)
 	httpRes, err := self.Do(req.Request)
 
 	if err != nil {

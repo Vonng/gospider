@@ -6,24 +6,29 @@ import (
 )
 
 func TestDefaultDownloader_Download(t *testing.T) {
-	dld := NewDownloader(nil, nil)
+	downloader := NewDefaultDownloader()
 
+	reqMeta := MetaMap{"hello": "world", "proxy": "http://localhost:8848"}
 	req, err := NewRequest("GET",
 		"http://www.baidu.com",
 		nil,
-		MetaMap{"hello": "world", "proxy": "http://localhost:8848"})
+		reqMeta,
+	)
 
 	if err != nil {
 		t.Error("create new request failed")
 	}
 
-	res, err := dld.Download(req)
+	res, err := downloader.Download(req)
 	if err != nil || !res.Valid() {
 		t.Error("download failed. %#v %#v", req, res)
 	}
 
-	b, _ := res.Content()
-	fmt.Printf("%+v %+v \n", b, res.Meta)
+	for k, v := range res.Meta {
+		if reqMeta[k] != v {
+			t.Error("Request & Response should have same meta")
+		}
+	}
 
 }
 
@@ -33,7 +38,7 @@ func TestFakeResponse(t *testing.T) {
 }
 
 func TestDulicateRequest(t *testing.T) {
-	dld := NewDownloader(nil, nil)
+	downloader, _ := NewDownloader(nil, NewMapFilter())
 
 	req, err := NewRequest("GET",
 		"http://www.baidu.com",
@@ -44,12 +49,12 @@ func TestDulicateRequest(t *testing.T) {
 		t.Error("create new request failed")
 	}
 
-	res, err := dld.Download(req)
+	res, err := downloader.Download(req)
 	if err != nil || !res.Valid() {
 		t.Error("download failed. %#v %#v", req, res)
 	}
 
-	res, err = dld.Download(req)
+	res, err = downloader.Download(req)
 
 	if err == nil {
 		t.Error("downloading same request should raise ErrDuplicateRequest")

@@ -4,6 +4,12 @@ import "errors"
 
 var ErrDropItem = errors.New("drop item")
 
+// ErrNoSuchKey occurs when access map with non-exist key
+var ErrNoSuchKey = errors.New("no such key")
+
+// ErrValueIsNotString occurs when Data.GetString() meets a non-string value
+var ErrValueIsNotString = errors.New("value is not string")
+
 var ErrDownloadFail = errors.New("download fail")
 
 var ErrNilRequest = errors.New("nil request")
@@ -41,3 +47,5 @@ var ErrInvalidDataItem = errors.New("invalid data items")
 var ErrResponseFromAnalyzer = errors.New("response from analyzer")
 
 var ErrGenerateInvalidType = errors.New("generate invliad type")
+
+var ErrNilParser = errors.New("nil parser")

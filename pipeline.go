@@ -1,5 +1,7 @@
 package gospider
 
+import "fmt"
+
 /**************************************************************
 * interface: processor
 **************************************************************/
@@ -31,29 +33,35 @@ type defaultPipeline struct {
 // NewPipeline create a default pipeline
 func NewPipeline(processors []Processor) (Pipeline, error) {
 	if processors == nil || len(processors) == 0 {
-		return nil, ErrNilProcessorList
+		return nil, ErrNilProcessor
 	}
 
-	var innerProcessors []Processor
+	var list []Processor
 	for _, processor := range processors {
 		if processor == nil {
 			return nil, ErrNilProcessor
 		}
-		innerProcessors = append(innerProcessors, processor)
+		list = append(list, processor)
 	}
 
 	return &defaultPipeline{
 		ModuleInternal: NewModuleInternalFromType(ModuleTypePipeline),
-		processors:     innerProcessors,
+		processors:     list,
 	}, nil
 }
 
-func (pipeline *defaultPipeline) Processors() []Processor {
-	processors := make([]Processor, len(pipeline.processors))
-	copy(processors, pipeline.processors)
-	return processors
+// NewPipelineFromProcessor create pipeline from single processor
+func NewPipelineFromProcessor(processor Processor) (Pipeline, error) {
+	if processor == nil {
+		return nil, ErrNilProcessor
+	}
+	return &defaultPipeline{
+		ModuleInternal: NewModuleInternalFromType(ModuleTypePipeline),
+		processors:     []Processor{processor},
+	}, nil
 }
 
+// defaultPipeline_Send will put item into pipeline for handling
 func (self *defaultPipeline) Send(item Item) []error {
 	self.ModuleInternal.Call()
 
@@ -62,13 +70,13 @@ func (self *defaultPipeline) Send(item Item) []error {
 		errs = append(errs, ErrNilItem)
 		return errs
 	}
-
 	self.ModuleInternal.Doing()
 
 	for _, processor := range self.processors {
 		err := processor(item)
 		if err != nil {
 			errs = append(errs, err)
+			// if returns a ErrDropItem then break directly
 			if err == ErrDropItem {
 				break
 			}
@@ -82,4 +90,10 @@ func (self *defaultPipeline) Send(item Item) []error {
 	}
 
 	return errs
+}
+
+// PrintItem is simplest pipeline
+func PrintItem(item Item) error {
+	fmt.Println("%+v", item)
+	return nil
 }

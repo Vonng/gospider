@@ -25,7 +25,7 @@ type defaultFilter struct {
 }
 
 // NewMapFilter create a default dupe filter
-func NewMapFilter() (Filter) {
+func NewMapFilter() Filter {
 	return &defaultFilter{}
 }
 
@@ -49,6 +49,7 @@ func (self *defaultFilter) SeenURL(url string) bool {
 
 // redisFilter using HyperLogLog to determine whether seen a url
 // It may loss some accuracy trade for memory usage
+// little FP rate: some unseen page could be consider seen
 type redisFilter struct {
 	key    string
 	client *redis.Client

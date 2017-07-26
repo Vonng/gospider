@@ -4,6 +4,7 @@ import (
 	"io"
 	"bytes"
 	"net/http"
+	"encoding/json"
 )
 
 /**************************************************************
@@ -29,7 +30,40 @@ func (item Item) Valid() bool {
 	return item != nil
 }
 
-// Maybe serialize & deserialize should be part of item definition
+// Item_Data will wrap itself as Data
+func (item Item) Data() Data {
+	return item
+}
+
+// Item_DataSlice will wrap itself as DataSlice
+func (item Item) DataSlice() []Data {
+	return []Data{item}
+}
+
+// Item_GetString will access self and assume a string value
+func (item Item) GetString(key string) (string, error) {
+	value, ok := item[key];
+	if !ok {
+		return "", ErrNoSuchKey
+	}
+
+	if s, ok := value.(string); !ok {
+		return "", ErrValueIsNotString
+	} else {
+		return s, nil
+	}
+}
+
+// Item_Marshal using json to serialize item
+// do not fill value that is not JSON serializable
+func (item Item) Marshal() ([]byte, error) {
+	return json.Marshal(item)
+}
+
+// Item_Unmarshal will deserialize item from []byte
+func (item Item) Unmarshal(data []byte) (error) {
+	return json.Unmarshal(data, &item)
+}
 
 /**************************************************************
 * struct: MetaMap
@@ -69,6 +103,11 @@ func (req *Request) Valid() bool {
 	return req.Request != nil && req.Request.URL != nil
 }
 
+// Request_SetCallback will set callback name to Meta
+func (req *Request) SetCallback(parserName string) {
+	req.Meta[KeyCallback] = parserName
+}
+
 /**************************************************************
 * struct: Response
 **************************************************************/
@@ -99,6 +138,11 @@ func (res *Response) Content() (buf *bytes.Buffer, err error) {
 // Response_Valid implement Data interface
 func (res *Response) Valid() bool {
 	return res.Response != nil && res.Body != nil
+}
+
+// Response_SetCallback will set callback name to Meta
+func (res *Response) SetCallback(parserName string) {
+	res.Meta[KeyCallback] = parserName
 }
 
 /**************************************************************
