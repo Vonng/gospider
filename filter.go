@@ -1,9 +1,12 @@
 package gospider
 
 import (
+	"net/url"
 	"sync"
 	"github.com/go-redis/redis"
 )
+
+import . "github.com/PuerkitoBio/purell"
 
 /**************************************************************
 * interface: Filter
@@ -44,19 +47,19 @@ func (self *defaultFilter) SeenURL(url string) bool {
 }
 
 /**************************************************************
-* struct: redisFilter
+* struct: redisSetFilter
 **************************************************************/
 
-// redisFilter using HyperLogLog to determine whether seen a url
+// redisSetFilter using HyperLogLog to determine whether seen a url
 // It may loss some accuracy trade for memory usage
 // little FP rate: some unseen page could be consider seen
-type redisFilter struct {
+type redisSetFilter struct {
 	key    string
 	client *redis.Client
 }
 
-// redisFilter create a new redis dupe filter using PFADD
-func NewRedisFilter(redisURL string, key string) (Filter, error) {
+// redisSetFilter create a new redis dupe filter using PFADD
+func NewRedisSetFilter(redisURL string, key string) (Filter, error) {
 	ops, err := redis.ParseURL(redisURL);
 	if err != nil {
 		return nil, err
@@ -67,17 +70,76 @@ func NewRedisFilter(redisURL string, key string) (Filter, error) {
 		return nil, err
 	}
 
-	return &redisFilter{key, client}, nil
+	return &redisSetFilter{key, client}, nil
 }
 
-// redisFilter_SeenURL using url directly instead of request
-func (self *redisFilter) Seen(req *Request) bool {
+// redisSetFilter_SeenURL using url directly instead of request
+func (self *redisSetFilter) Seen(req *Request) bool {
+	i, _ := self.client.SAdd(self.key, req.URL).Result()
+	return i == 0
+}
+
+// redisSetFilter_Seen implemented with PFAdd
+func (self *redisSetFilter) SeenURL(url string) bool {
+	i, _ := self.client.PFAdd(self.key, url).Result()
+	return i == 0
+}
+
+/**************************************************************
+* struct: redisBloomFilter
+**************************************************************/
+
+// redisBloomFilter using HyperLogLog to determine whether seen a url
+// It may loss some accuracy trade for memory usage
+// little FP rate: some unseen page could be consider seen
+type redisBloomFilter struct {
+	key    string
+	client *redis.Client
+}
+
+// redisBloomFilter create a new redis dupe filter using PFADD
+func NewRedisBloomFilter(redisURL string, key string) (Filter, error) {
+	ops, err := redis.ParseURL(redisURL);
+	if err != nil {
+		return nil, err
+	}
+	client := redis.NewClient(ops)
+
+	if _, err = client.Ping().Result(); err != nil {
+		return nil, err
+	}
+
+	return &redisBloomFilter{key, client}, nil
+}
+
+// redisBloomFilter_SeenURL using url directly instead of request
+func (self *redisBloomFilter) Seen(req *Request) bool {
 	i, _ := self.client.PFAdd(self.key, req.URL).Result()
 	return i == 0
 }
 
-// redisFilter_Seen implemented with PFAdd
-func (self *redisFilter) SeenURL(url string) bool {
+// redisBloomFilter_Seen implemented with PFAdd
+func (self *redisBloomFilter) SeenURL(url string) bool {
 	i, _ := self.client.PFAdd(self.key, url).Result()
 	return i == 0
+}
+
+/**************************************************************
+* function: PureURL
+**************************************************************/
+var URLNormalizeFlag = FlagsSafe |
+	FlagDecodeUnnecessaryEscapes |
+	FlagEncodeNecessaryEscapes |
+	FlagRemoveDotSegments |
+	FlagRemoveFragment
+
+// PureURL will normalize url with default flags
+func PureURL(u *url.URL) string {
+	return NormalizeURL(u, URLNormalizeFlag)
+}
+
+// PureURLString is like PureURL while url string may be invalid
+// then an error may occur indicate such a parse error
+func PureURLString(u string) (string, error) {
+	return NormalizeURLString(u, URLNormalizeFlag);
 }

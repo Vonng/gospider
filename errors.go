@@ -2,33 +2,54 @@ package gospider
 
 import "errors"
 
+// Constant that used as item key for special use
+var (
+	KeyDefault  = "_default"
+	KeyFilter   = "_filter"
+	KeyData     = "_data"
+	KeyBody     = "_body"
+	KeyCallback = "_callback"
+)
+
+/**************************************************************
+* errors: Scheduler
+**************************************************************/
+var ErrDupeRequest = errors.New("duplicate request")
+
+/**************************************************************
+* errors: Downloader
+**************************************************************/
+var ErrNilRequest = errors.New("nil request")
+
+/**************************************************************
+* errors: Analyzer
+**************************************************************/
+var ErrParse = errors.New("parse error")
+
+/**************************************************************
+* errors: Pipeline
+**************************************************************/
 var ErrDropItem = errors.New("drop item")
+var ErrNilProcessor = errors.New("nil processor")
+
+var ErrNilResponse = errors.New("nil response")
+var ErrNilParser = errors.New("nil parser")
 
 // ErrNoSuchKey occurs when access map with non-exist key
-var ErrNoSuchKey = errors.New("no such key")
+//var ErrNoSuchKey = errors.New("no such key")
 
 // ErrValueIsNotString occurs when Data.GetString() meets a non-string value
 var ErrValueIsNotString = errors.New("value is not string")
 
 var ErrDownloadFail = errors.New("download fail")
 
-var ErrNilRequest = errors.New("nil request")
-
-var ErrDupeRequest = errors.New("duplicate request")
-
 var ErrStopIteration = errors.New("stop iteration")
 
 var ErrNilProcessorList = errors.New("nil processor list for pipeline")
 
-var ErrNilProcessor = errors.New("nil processor")
-
 var ErrNilItem = errors.New("nil item")
 
-var ErrParse = errors.New("parse error")
-
 var ErrContinue = errors.New("continue")
-
-var ErrNilResponse = errors.New("nil response")
 
 var ErrInvalidCallback = errors.New("invalid callback")
 
@@ -47,5 +68,3 @@ var ErrInvalidDataItem = errors.New("invalid data items")
 var ErrResponseFromAnalyzer = errors.New("response from analyzer")
 
 var ErrGenerateInvalidType = errors.New("generate invliad type")
-
-var ErrNilParser = errors.New("nil parser")

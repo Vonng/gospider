@@ -1,146 +1,180 @@
 package gospider
 
+import log "github.com/Sirupsen/logrus"
+
 /**************************************************************
 * struct:  EngineArgs
 **************************************************************/
 
 // EngineArgs holds args of engine
 type EngineArgs struct {
-	Generator       Generator
-	Analyzer        Analyzer
-	Downloader      Downloader
-	Pipeline        Pipeline
-	Workers         uint32
-	RequestBufSize  uint32
-	ResponseBufSize uint32
-	ItemBufSize     uint32
-	ErrorBufSize    uint32
+	// Spider name
+	Name string
+
+	// Request Dupe Filter. Set to nil to disable
+	Filter Filter
+
+	// Analyzer instance
+	Analyzer Analyzer
+
+	// Downloader instance
+	Downloader Downloader
+
+	// Pipeline instance
+	Pipeline Pipeline
+
+	// downloader work count. should not be zero
+	DWorkers uint32
+
+	// ReqBufSize sets request chan buffer size. set to a small number is ok
+	ReqBufSize uint32
+
+	// ResBufSize is response chan buffer size. set to zero to be on-demand-spawn
+	ResBufSize uint32
+
+	// ResBufSize is item chan buffer size. set to zero to be on-demand-spawn
+	ItemBufSize uint32
+
+	// ErrBufSize could be set to a proper number like 1000
+	ErrBufSize uint32
 }
 
+// Default presets
+func NewEngineArgs() *EngineArgs {
+	return &EngineArgs{
+		Filter:      NewMapFilter(),
+		DWorkers:    20,
+		ReqBufSize:  10,
+		ResBufSize:  10000,
+		ItemBufSize: 10000,
+		ErrBufSize:  10000,
+	}
+}
+
+/**************************************************************
+* interface:  Engine
+**************************************************************/
 // Engine: core of spider
-type Engine struct {
-	generator  Generator
-	analyzer   Analyzer
-	downloader Downloader
-	pipeline   Pipeline
-	Workers    uint32
-	Requests   chan *Request
-	Responses  chan *Response
-	Items      chan Item
-	Errors     chan error
+
+type Engine interface {
+	Scheduler
+	Run(<-chan Data) <-chan error
+	Summary() string
 }
 
-// NewEngine build a engine from given args
-func NewEngine(args *EngineArgs) *Engine {
-	engine := &Engine{
-		generator:  args.Generator,
-		analyzer:   args.Analyzer,
-		downloader: args.Downloader,
-		pipeline:   args.Pipeline,
-		Workers:    args.Workers,
-		Requests:   make(chan *Request, args.RequestBufSize),
-		Responses:  make(chan *Response, args.ResponseBufSize),
-		Items:      make(chan Item, args.ItemBufSize),
-		Errors:     make(chan error, args.ErrorBufSize),
+type myEngine struct {
+	myScheduler
+	Name       string
+	Args       *EngineArgs
+	Analyzer   Analyzer
+	Downloader Downloader
+	Pipeline   Pipeline
+}
+
+func NewEngine(args *EngineArgs) Engine {
+	engine := &myEngine{
+		myScheduler: myScheduler{
+			Filter:    args.Filter,
+			Requests:  make(chan *Request, args.ReqBufSize),
+			Responses: make(chan *Response, args.ResBufSize),
+			Items:     make(chan Item, args.ItemBufSize),
+			Errors:    make(chan error, args.ErrBufSize),
+		},
+		Args:       args,
+		Analyzer:   args.Analyzer,
+		Downloader: args.Downloader,
+		Pipeline:   args.Pipeline,
 	}
 	return engine
 }
 
-// Engine_Run will start engine. returns a ErrorChannel
-func (self *Engine) Run() <-chan error {
-	log.Info("[INIT] engine health check...")
+func (self *myEngine) Run(generator <-chan Data) <-chan error {
+	log.Info("[INIT] engine starting...")
+	self.analyze()
+	self.pipeline()
+	self.download()
 
-	log.Info("[INIT] prepare downloader")
-	if self.downloader != nil {
-		self.download()
-		log.Info("[INIT] downloader ready")
-	} else {
-		log.Warn("[INIT] nil downloader")
+	if generator != nil {
+		self.Pull(generator)
 	}
 
-	log.Info("[INIT] prepare analyzer")
-	if self.analyzer != nil {
-		self.analyze()
-		log.Warn("[INIT] analyzer ready")
-	} else {
-		log.Warn("[INIT] nil analyzer")
-	}
-
-	if self.pipeline != nil {
-		log.Info("[INIT] prepare pipeline")
-		self.pipework()
-		log.Warn("[INIT] analyzer ready")
-	} else {
-		log.Warn("[INIT] nil pipeline. set a pipeline with PrintItem")
-		self.pipeline, _ = NewPipelineFromProcessor(PrintItem)
-	}
-
-	if self.generator != nil {
-		log.Info("[INIT] prepare generator")
-		self.generate()
-		log.Info("[INIT] generator ready")
-	} else {
-		log.Warn("[INIT] nil generator")
-	}
-
-	log.Info("[INIT] engine build complete success")
 	return (<-chan error)(self.Errors)
 }
 
-// Engine_download will start download loop with n worker
-func (self *Engine) download() {
-	for i := 0; uint32(i) < self.Workers; i ++ {
-		log.Infof("[INIT] downloader worker [%d] init", i)
-		go func(worker int) {
-			for {
-				self.downloadOne()
-			}
-		}(i)
-	}
+func (self *myEngine) Stop([]Data) error {
+	log.Info("[INIT] engine stopping...[Not implemented]")
+	return nil
 }
 
-// Engine_downloadOne will pick a request and yield a response
-func (self *Engine) downloadOne() {
-	// Get one request from pool
-	req, ok := <-self.Requests
-	if !ok {
-		self.Errors <- ErrTrashInRequestPool
-	}
+func (self *myEngine) Summary() string {
+	return "not implemented"
+}
 
-	// send it to downloader
-	res, err := self.downloader.Download(req)
-	if err != nil || res == nil {
-		self.Errors <- err
+func (self *myEngine) download() {
+	var n uint32
+	if n = self.Args.DWorkers; n == 0 {
+		// means on-demand-spawn goroutines // dangerous
+		log.Infof("[INIT] DWorker = 0. spawn goroutine for each request.")
+		for req := range self.Requests {
+			go self.downloadReq(req)
+		}
+
 	} else {
-		self.Responses <- res
+		log.Infof("[INIT] DWorker = %d. spawn %d download goroutine", n, n)
+		ParallelWork(n, self.downloadLoop)
+	}
+	log.Infof("[INIT] Downloader init complete")
+}
+
+func (self *myEngine) downloadLoop(id int) {
+	log.Infof("[INIT] Downloader[id:%d] routine init", id)
+	for req := range self.Requests {
+		log.Debugf("[DOWN]-[%d] fetch %s ", id, req.URL)
+		res, err := self.Downloader.Download(req)
+		if err != nil {
+			self.Errors <- err
+		} else {
+			self.Responses <- res
+			log.Infof("[DOWN][%d] done %s ", id, req.URL)
+		}
 	}
 }
 
-// Engine_analyzer will begin a analyze loop
-func (self *Engine) analyze() {
+// myEngine_downloadReq : on-demand-spawn
+func (self *myEngine) downloadReq(req *Request) {
+
+	log.Infof("[DOWN] %s begin", req.URL)
+	res, err := self.Downloader.Download(req)
+	if err != nil {
+		self.Errors <- err
+	}
+	// Put Response
+	self.Responses <- res
+	log.Infof("[DOWN] %s complete", req.URL)
+}
+
+// analyze start an analyze loop (ODS: on demand spawn)
+func (self *myEngine) analyze() {
+	log.Infof("[INIT] Analyzer init begin")
 	go func() {
 		for res := range self.Responses {
-			if res.Valid() {
+			if res == nil {
+				self.Errors <- ErrNilResponse
+			} else {
 				go self.parseOne(res)
 			}
 		}
 	}()
+	log.Infof("[INIT] Analyzer init complete")
 }
 
-// Engine_parseOne will take one item from item chan and parse it
-func (self *Engine) parseOne(res *Response) {
-	data, err := self.analyzer.Analyze(res)
-	if data != nil && len(data) > 0 {
-		for _, itemOrReq := range data {
-			switch v := itemOrReq.(type) {
-			case Item:
-				self.Items <- v
-			case *Request:
-				self.Requests <- v
-			case *Response:
-				self.Errors <- ErrResponseFromAnalyzer
-			}
-		}
+func (self *myEngine) parseOne(res *Response) {
+	log.Info("[ANAY] parser one item")
+	data, err := self.Analyzer.Analyze(res)
+	if len(data) > 0 {
+		self.SendDataList(data)
+	} else {
+		log.Warn("[ANAY] parse with no yield")
 	}
 
 	if err != nil {
@@ -148,45 +182,26 @@ func (self *Engine) parseOne(res *Response) {
 	}
 }
 
-// Engine_pipework will start item processing loop
-func (self *Engine) pipework() {
+func (self *myEngine) pipeline() {
+	log.Infof("[INIT] Pipeline init begin")
 	go func() {
 		for item := range self.Items {
-			go self.pickOne(item)
-		}
-	}()
-}
-
-// Engine_pickOne will get an item from item chan and handle it
-func (self *Engine) pickOne(item Item) {
-	go func() {
-		errs := self.pipeline.Send(item)
-		if len(errs) > 0 {
-			for _, err := range errs {
-				self.Errors <- err
+			if item == nil {
+				self.Errors <- ErrNilItem
+			} else {
+				go self.pickOne(item)
 			}
 		}
 	}()
+	log.Infof("[INIT] Pipeline init complete")
 }
 
-// Engine_generate: start working loop:
-// Data -> item/req/res pool
-func (self *Engine) generate() {
-	go func() {
-		for datum := range self.generator.Generator().Gen() {
-			switch v := datum.(type) {
-			case Item:
-				self.Items <- v
-				log.Debugf("[GEN] new item %+v", v)
-			case *Request:
-				self.Requests <- v
-				log.Debugf("[GEN] new request %+v", v)
-			case *Response:
-				self.Responses <- v
-				log.Debugf("[GEN] new response %+v", v)
-			default:
-				self.Errors <- ErrGenerateInvalidType
-			}
-		} // quit when generator is closed
-	}()
+func (self *myEngine) pickOne(item Item) {
+	log.Info("[PIPE] pick item %s", item.Repr())
+	errs := self.Pipeline.Send(item)
+	if len(errs) > 0 {
+		for _, err := range errs {
+			self.Errors <- err
+		}
+	}
 }

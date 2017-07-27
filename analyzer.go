@@ -15,21 +15,17 @@ type ParserMap map[string]Parser
 // Analyzer is interface for module Analyzer
 // Analyzer take Response as input and yield multiple Request or Item
 type Analyzer interface {
-	Module
-	// Get parser according to parser's name
 	GetParser(name string) Parser
 	// Analyze will invoke specific parser for parsing according to res.Meta
 	Analyze(res *Response) ([]Data, error)
 }
 
 /**************************************************************
-* struct: defaultAnalyzer
+* struct: myAnalyzer
 **************************************************************/
 
-// defaultAnalyzer is default implementation of interface Analyzer
-type defaultAnalyzer struct {
-	ModuleInternal
-	// parsers Contains named parsers, Read only
+// myAnalyzer is default implementation of interface Analyzer
+type myAnalyzer struct {
 	parsers       ParserMap
 	defaultParser Parser
 }
@@ -57,63 +53,59 @@ func NewAnalyzer(parsers ParserMap) (Analyzer, error) {
 		}
 	}
 
-	return &defaultAnalyzer{
-		ModuleInternal: NewModuleInternalFromType(ModuleTypeAnalyzer),
-		parsers:        parsers,
-		defaultParser:  defaultParser,
+	return &myAnalyzer{
+		parsers:       parsers,
+		defaultParser: defaultParser,
 	}, nil
 }
 
-// NewAnalyzerFromParser is one-parser only version of Analyzer constructor
-func NewAnalyzerFromParser(parser Parser) (Analyzer, error) {
+// NewAnalyzerSolo is one-parser only version of Analyzer constructor
+func NewAnalyzerSolo(parser Parser) (Analyzer, error) {
 	if parser == nil {
 		return nil, ErrNilParser
 	}
-	return &defaultAnalyzer{
-		ModuleInternal: NewModuleInternalFromType(ModuleTypeAnalyzer),
-		parsers:        ParserMap{KeyDefault: parser},
-		defaultParser:  parser,
+	return &myAnalyzer{
+		parsers:       ParserMap{KeyDefault: parser},
+		defaultParser: parser,
 	}, nil
 }
 
-// defaultAnalyzer_GetParser will get parser by name
-func (self *defaultAnalyzer) GetParser(name string) Parser {
+// myAnalyzer_GetParser will get parser by name
+func (self *myAnalyzer) GetParser(name string) Parser {
 	if p, ok := self.parsers[name]; ok {
 		return p
 	}
 	return nil
 }
 
-// defaultAnalyzer_Analyze will parse response and yield request & items
-func (self *defaultAnalyzer) Analyze(res *Response) ([]Data, error) {
+// myAnalyzer_Analyze will parse response and yield request & items
+func (self *myAnalyzer) Analyze(res *Response) ([]Data, error) {
 	// use default parser by default
-	parser := self.defaultParser
-	// if callback is manually set, then use corresponding parser
-	if callback, ok := res.Meta[KeyCallback]; ok {
-		callbackName, ok := callback.(string)
-		if !ok {
-			return nil, ErrInvalidCallback
-		}
-		if p := self.GetParser(callbackName); p == nil {
-			return nil, ErrCallbackNotFount
-		} else {
-			parser = p
+	callback := self.defaultParser
+
+	// if callback is manually set and could be found, then use it
+	if res.Request != nil && res.Request.Callback != "" {
+		if callback = self.GetParser(res.Request.Callback); callback == nil {
+			callback = self.defaultParser
 		}
 	}
 
-	return parser(res)
+	return callback(res)
 }
 
+/**************************************************************
+* Parser: BodyReader
+**************************************************************/
 // BodyReader is a naive parser that read html body([]byte) into item["content"]
 // and also copy all kv in request's meta to item (cautious: do not use "content" as key)
 // This can be used when no analyzer is given
 func BodyReader(res *Response) ([]Data, error) {
-	item := make(Item, len(res.Meta)+1)
+	item := make(Item, len(res.Request.Meta)+1)
 	if body, err := ioutil.ReadAll(res.Response.Body); err != nil {
 		return nil, err
 	} else {
 		// copy request meta to item
-		for k, v := range res.Meta {
+		for k, v := range res.Request.Meta {
 			item[k] = v
 		}
 

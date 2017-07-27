@@ -2,41 +2,40 @@ package gospider
 
 import (
 	"testing"
-	"fmt"
 )
 
 func TestNewPipeline(t *testing.T) {
 	p1 := func(item Item) error {
-		fmt.Println("p1")
+		item["p1"] = "p1"
 		return nil
 	}
 
 	p2 := func(item Item) error {
-		fmt.Println("p2")
-		return nil
-	}
-
-	p3 := func(item Item) error {
-		fmt.Println("p3")
-		if item["flag"].(bool) == true {
-			item["flagSetToTrue"] = true
-			return nil
-		}
+		item["p2"] = "p2"
 		return ErrDropItem
 	}
 
-	pipe, _ := NewPipeline([]Processor{p1, p2, p3, p2, p1})
-
-	fmt.Println(pipe)
-	i := map[string]interface{}{
-		"flag":  false,
-		"data":  "xixi",
-		"hello": 3,
-		"url":   "http://www.baidu.com",
+	p3 := func(item Item) error {
+		item["p3"] = "p3"
+		return nil
 	}
 
-	fmt.Printf("Before %#v\n", i)
+	pipe, _ := NewPipeline([]Processor{p1, p2, p3})
+	// have "p1", "p2", but not have p3
+
+	i := make(Item, 3)
 	pipe.Send(Item(i))
-	fmt.Printf("After %#v\n", i)
+
+	if i["p1"] != "p1" {
+		t.Error("pipeline should have first processor executed")
+	}
+
+	if i["p2"] != "p2" {
+		t.Error("pipeline should have second processor executed")
+	}
+
+	if _, ok := i["p3"]; ok {
+		t.Error("pipeline should drop item after p2, so there shouldn't be p3")
+	}
 
 }

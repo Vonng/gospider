@@ -6,10 +6,10 @@ func TestNewAnalyzer(t *testing.T) {
 	fakeURL := "https://www.google.com"
 	fakeContent := "test content"
 	// make a fake response
-	res := FakeResponseString(fakeURL, fakeContent)
+	res := FakeResponse(fakeURL, fakeContent)
 
 	// NewAnalyzer will init a Analyzer will ContentReader as parser
-	analyzer, err := NewAnalyzer(nil)
+	analyzer, err := NewAnalyzerSolo(BodyReader)
 	if err != nil {
 		t.Error(err)
 	}
@@ -48,13 +48,13 @@ func TestNewAnalyzerWithCallback(t *testing.T) {
 	fakeURL := "https://www.google.com"
 	fakeContent := "test content"
 	// make a fake response
-	res := FakeResponseString(fakeURL, fakeContent)
-	res.SetCallback("urlparser")
+	res := FakeResponse(fakeURL, fakeContent)
+	res.Request.SetCallback("urlparser")
 
 	// NewAnalyzer will init a Analyzer will ContentReader as parser
 	analyzer, err := NewAnalyzer(ParserMap{
 		"urlparser": func(res *Response) ([]Data, error) {
-			return Item{"url": res.Request.URL.String()}.DataSlice(), nil
+			return Item{"url": res.Request.URL.String()}.DataList(), nil
 		},
 	})
 

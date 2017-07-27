@@ -1,7 +1,5 @@
 package gospider
 
-import "fmt"
-
 /**************************************************************
 * interface: processor
 **************************************************************/
@@ -15,8 +13,8 @@ type Processor func(item Item) error
 **************************************************************/
 // Pipeline take Item in and handle it
 type Pipeline interface {
-	Module
-	// Send : Send Item to pipeline。
+	// Send will make an item go through pipeline
+	// pipe will interrupt when ErrDropItem is returned by processor
 	Send(item Item) []error
 }
 
@@ -26,7 +24,6 @@ type Pipeline interface {
 
 // defaultPipeline is default implementation of interface Pipeline
 type defaultPipeline struct {
-	ModuleInternal
 	processors []Processor
 }
 
@@ -45,55 +42,30 @@ func NewPipeline(processors []Processor) (Pipeline, error) {
 	}
 
 	return &defaultPipeline{
-		ModuleInternal: NewModuleInternalFromType(ModuleTypePipeline),
-		processors:     list,
+		processors: list,
 	}, nil
 }
 
-// NewPipelineFromProcessor create pipeline from single processor
-func NewPipelineFromProcessor(processor Processor) (Pipeline, error) {
-	if processor == nil {
-		return nil, ErrNilProcessor
-	}
-	return &defaultPipeline{
-		ModuleInternal: NewModuleInternalFromType(ModuleTypePipeline),
-		processors:     []Processor{processor},
-	}, nil
+// NewPipelineSolo create pipeline from a solo processor
+// this constructor do not check processor == nil
+func NewPipelineSolo(processor Processor) (Pipeline) {
+	return &defaultPipeline{[]Processor{processor}}
 }
 
 // defaultPipeline_Send will put item into pipeline for handling
+// nil item will not be checked
 func (self *defaultPipeline) Send(item Item) []error {
-	self.ModuleInternal.Call()
-
+	// normal errors will just be collected together except ErrDropItem
 	var errs []error
-	if item == nil {
-		errs = append(errs, ErrNilItem)
-		return errs
-	}
-	self.ModuleInternal.Doing()
-
 	for _, processor := range self.processors {
 		err := processor(item)
 		if err != nil {
 			errs = append(errs, err)
-			// if returns a ErrDropItem then break directly
 			if err == ErrDropItem {
 				break
 			}
 		}
 	}
 
-	if len(errs) == 0 {
-		self.Done()
-	} else {
-		self.Fail()
-	}
-
 	return errs
-}
-
-// PrintItem is simplest pipeline
-func PrintItem(item Item) error {
-	fmt.Println("%+v", item)
-	return nil
 }
