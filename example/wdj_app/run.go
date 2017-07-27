@@ -1,17 +1,3 @@
-# gospider
-
-A spider framework in go
-
-simple and naive
-
-there are two examples:
-
-* [AppStore](./example/ios_app)
-* [豌豆荚](./example/wdj_app)
-
-## Usage
-
-```
 package wdj_app
 
 import . "github.com/Vonng/gospider"
@@ -80,5 +66,3 @@ func Run() {
 		log.Error(err)
 	}
 }
-
-```

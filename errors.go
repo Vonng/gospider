@@ -4,11 +4,9 @@ import "errors"
 
 // Constant that used as item key for special use
 var (
-	KeyDefault  = "_default"
-	KeyFilter   = "_filter"
-	KeyData     = "_data"
-	KeyBody     = "_body"
-	KeyCallback = "_callback"
+	KeyDefault = "_default"
+	KeyData    = "_data"
+	KeyBody    = "_body"
 )
 
 /**************************************************************
@@ -32,13 +30,13 @@ var ErrParse = errors.New("parse error")
 var ErrDropItem = errors.New("drop item")
 var ErrNilProcessor = errors.New("nil processor")
 
+/**************************************************************
+* errors: Nil Entity
+**************************************************************/
 var ErrNilResponse = errors.New("nil response")
 var ErrNilParser = errors.New("nil parser")
+var ErrNilItem = errors.New("nil item")
 
-// ErrNoSuchKey occurs when access map with non-exist key
-//var ErrNoSuchKey = errors.New("no such key")
-
-// ErrValueIsNotString occurs when Data.GetString() meets a non-string value
 var ErrValueIsNotString = errors.New("value is not string")
 
 var ErrDownloadFail = errors.New("download fail")
@@ -46,8 +44,6 @@ var ErrDownloadFail = errors.New("download fail")
 var ErrStopIteration = errors.New("stop iteration")
 
 var ErrNilProcessorList = errors.New("nil processor list for pipeline")
-
-var ErrNilItem = errors.New("nil item")
 
 var ErrContinue = errors.New("continue")
 

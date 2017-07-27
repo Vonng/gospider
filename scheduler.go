@@ -55,14 +55,12 @@ func NewScheduler(reqBufSz, resBufSz, itemBufSz uint, filter Filter) Scheduler {
 // it will check duplicate accroding to req.Meta
 // return value indicate whether this request is enqueued
 func (self *myScheduler) PutRequest(req *Request) bool {
-	if req.IgnoreDupe || !self.Seen(req) {
-		self.Requests <- req
-		return true
-	} else {
+	if !req.IgnoreDupe && self.Filter != nil && self.Seen(req) {
 		self.Errors <- ErrDupeRequest
 		return false
 	}
-
+	self.Requests <- req
+	return true
 }
 
 // myScheduler_GetRequest will fetch a request from chan

@@ -96,7 +96,7 @@ func (self *myAnalyzer) Analyze(res *Response) ([]Data, error) {
 /**************************************************************
 * Parser: BodyReader
 **************************************************************/
-// BodyReader is a naive parser that read html body([]byte) into item["content"]
+// BodyReader is a naive parser that read html body(string) into item["body"]
 // and also copy all kv in request's meta to item (cautious: do not use "content" as key)
 // This can be used when no analyzer is given
 func BodyReader(res *Response) ([]Data, error) {
@@ -109,8 +109,8 @@ func BodyReader(res *Response) ([]Data, error) {
 			item[k] = v
 		}
 
-		// copy content([]byte) to item["content"]. it will overwrite meta's content (if set)
-		item[KeyBody] = body
-		return []Data{item}, nil
+		// copy body(string) to item["content"]. it will overwrite meta's content (if set)
+		item[KeyBody] = string(body)
+		return item.DataList(), nil
 	}
 }

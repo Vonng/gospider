@@ -197,7 +197,7 @@ func (self *myEngine) pipeline() {
 }
 
 func (self *myEngine) pickOne(item Item) {
-	log.Infof("[PIPE] pick item %s", item.Repr())
+	log.Info("[PIPE] pick item")
 	errs := self.Pipeline.Send(item)
 	if len(errs) > 0 {
 		for _, err := range errs {

@@ -1,17 +1,18 @@
-# gospider
+# go-spider iOS
 
-A spider framework in go
-
-simple and naive
-
-there are two examples:
-
-* [AppStore](./example/ios_app)
-* [豌豆荚](./example/wdj_app)
-
-## Usage
-
-```
+this sample shows how to use gospider crawling [豌豆荚](http://www.wandoujia.com)
+ an android app store. 
+ 
+ `bin/wdj_app.go` contains the main program and can be run as a daemon
+ 
+ listen to redis list `wdj:app:todo`. then write result to table `Postgres://localhost:5432/app/wdj_app`
+ 
+ accroding to [SCHEMA](./wdj_app.ddl)
+ 
+ 
+ you just implement Analyzer, Pipeline, Using Default Downloader, and Make a redis Generator
+ 
+```go
 package wdj_app
 
 import . "github.com/Vonng/gospider"
