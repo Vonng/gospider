@@ -43,8 +43,8 @@ type EngineArgs struct {
 func NewEngineArgs() *EngineArgs {
 	return &EngineArgs{
 		Filter:      NewMapFilter(),
-		DWorkers:    20,
-		ReqBufSize:  10,
+		DWorkers:    5,
+		ReqBufSize:  0,
 		ResBufSize:  10000,
 		ItemBufSize: 10000,
 		ErrBufSize:  10000,
@@ -197,7 +197,7 @@ func (self *myEngine) pipeline() {
 }
 
 func (self *myEngine) pickOne(item Item) {
-	log.Info("[PIPE] pick item %s", item.Repr())
+	log.Infof("[PIPE] pick item %s", item.Repr())
 	errs := self.Pipeline.Send(item)
 	if len(errs) > 0 {
 		for _, err := range errs {
